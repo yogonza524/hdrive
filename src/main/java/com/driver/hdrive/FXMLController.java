@@ -1,10 +1,12 @@
 package com.driver.hdrive;
 
+import com.sun.javafx.binding.StringFormatter;
 import eu.hansolo.medusa.Gauge;
 import eu.hansolo.medusa.TickLabelOrientation;
 import eu.hansolo.medusa.skins.ModernSkin;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ResourceBundle;
 import java.util.logging.Level;
@@ -41,6 +43,7 @@ import org.controlsfx.control.PopOver;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import oshi.SystemInfo;
+import oshi.hardware.CentralProcessor;
 import oshi.hardware.HWDiskStore;
 import oshi.hardware.HardwareAbstractionLayer;
 import oshi.util.FormatUtil;
@@ -52,10 +55,12 @@ public class FXMLController implements Initializable {
     @FXML private Pane sensorPane;
     @FXML private VBox vBoxDisks;
     @FXML private HBox cpuToolBar;
+    @FXML private HBox hboxTick;
     
     private PopOver diskPop;
     
     private Gauge temperatura;
+    private Gauge userTick;
     private HardwareAbstractionLayer hardware;
     private int procesadores;
     
@@ -81,8 +86,6 @@ public class FXMLController implements Initializable {
         hardware = new SystemInfo().getHardware();
         procesadores = hardware.getProcessor().getLogicalProcessorCount();
         cpuUsage = new ArrayList<>();
-        
-        
         
         for (int i = 0; i < procesadores; i++) {
             Label l = new Label();
@@ -116,12 +119,32 @@ public class FXMLController implements Initializable {
             temperatura.setTickLabelColor(Color.rgb(151, 151, 151));  
             temperatura.setTickMarkColor(Color.GREY);  
             temperatura.setTickLabelOrientation(TickLabelOrientation.ORTHOGONAL);
+        
+        userTick = new Gauge();  
+            userTick.setSkin(new eu.hansolo.medusa.skins.SlimSkin(userTick));  
+            userTick.setTitle("Usuario");  
+            userTick.setUnit("%");  
+            userTick.setDecimals(0); 
+            userTick.setPrefWidth(200.0);
+            userTick.setPrefHeight(200.0);
+            userTick.setValueColor(Color.BLACK);  
+            userTick.setTitleColor(Color.BLACK);  
+            userTick.setUnitColor(Color.GREY);
+            userTick.setSubTitleColor(Color.WHITE);  
+            userTick.setBarColor(Color.rgb(0, 214, 215));  
+            userTick.setNeedleColor(Color.WHITE);  
+            userTick.setThresholdColor(Color.rgb(204, 0, 0));  
+            userTick.setTickLabelColor(Color.rgb(151, 151, 151));  
+            userTick.setTickMarkColor(Color.BLACK);  
+            userTick.setTickLabelOrientation(TickLabelOrientation.ORTHOGONAL);
             
             if (sensorPane != null) {
                 sensorPane.getChildren().add(temperatura);
             }
 
             temperatura.setValue(new SystemInfo().getHardware().getSensors().getCpuTemperature());
+            
+            hboxTick.getChildren().add(userTick);
     }
 
     private void initButtons() {
@@ -230,6 +253,27 @@ public class FXMLController implements Initializable {
                     Label l = (Label) cpuToolBar.getChildren().get(i);
                     l.setText(String.format(" %.1f%%", cpuLoad[i] * 100));
                 }
+                
+                long[] prevTicks = hardware.getProcessor().getSystemCpuLoadTicks();
+                // Wait a second...
+                Util.sleep(1000);
+                
+                long[] ticks = hardware.getProcessor().getSystemCpuLoadTicks();
+                
+                long user = ticks[CentralProcessor.TickType.USER.getIndex()] - prevTicks[CentralProcessor.TickType.USER.getIndex()];
+                long nice = ticks[CentralProcessor.TickType.NICE.getIndex()] - prevTicks[CentralProcessor.TickType.NICE.getIndex()];
+                long sys = ticks[CentralProcessor.TickType.SYSTEM.getIndex()] - prevTicks[CentralProcessor.TickType.SYSTEM.getIndex()];
+                long idle = ticks[CentralProcessor.TickType.IDLE.getIndex()] - prevTicks[CentralProcessor.TickType.IDLE.getIndex()];
+                long iowait = ticks[CentralProcessor.TickType.IOWAIT.getIndex()] - prevTicks[CentralProcessor.TickType.IOWAIT.getIndex()];
+                long irq = ticks[CentralProcessor.TickType.IRQ.getIndex()] - prevTicks[CentralProcessor.TickType.IRQ.getIndex()];
+                long softirq = ticks[CentralProcessor.TickType.SOFTIRQ.getIndex()] - prevTicks[CentralProcessor.TickType.SOFTIRQ.getIndex()];
+                long totalCpu = user + nice + sys + idle + iowait + irq + softirq;
+                
+                String datos = String.format("User: %.1f%% Nice: %.1f%% System: %.1f%% Idle: %.1f%% IOwait: %.1f%% IRQ: %.1f%% SoftIRQ: %.1f%%%n",
+                100d * user / totalCpu, 100d * nice / totalCpu, 100d * sys / totalCpu, 100d * idle / totalCpu,
+                100d * iowait / totalCpu, 100d * irq / totalCpu, 100d * softirq / totalCpu);
+                
+                userTick.setValue(user);
             }
         }));
         fiveSecondsWonder.setCycleCount(Timeline.INDEFINITE);
